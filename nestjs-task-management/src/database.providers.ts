@@ -9,10 +9,9 @@ export const databaseProviders = [
         host: 'localhost',
         port: 5432,
         username: 'postgres',
-        password: '7fyJPSX6@!flq%I7',
+        password: 'postgres',
         database: 'task-management',
-        entities: [__dirname + '/../**/*.entity.js'
-        ],
+        entities: [__dirname + '/../**/*.entity.js'],
         synchronize: true,
       });
 
