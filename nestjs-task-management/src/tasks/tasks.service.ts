@@ -1,3 +1,4 @@
+import { User } from './../auth/user.entity';
 import { Task } from './task.entity';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
@@ -12,8 +13,13 @@ export class TasksService {
     private tasksRepository: Repository<Task>,
   ) {}
 
-  async getTasks({ status, search }: GetTasksFilterDto): Promise<Task[]> {
+  async getTasks(
+    { status, search }: GetTasksFilterDto,
+    user: User,
+  ): Promise<Task[]> {
     const query = this.tasksRepository.createQueryBuilder('task');
+
+    query.where({ user });
 
     if (status) {
       query.andWhere('task.status = :status', { status });
@@ -21,7 +27,7 @@ export class TasksService {
 
     if (search) {
       query.andWhere(
-        'LOWER(task.title) LIKE LOWER(:search) OR LOWER(task.description) LIKE LOWER(:search)',
+        '(LOWER(task.title) LIKE LOWER(:search) OR LOWER(task.description) LIKE LOWER(:search))',
         { search: `%${search}%` },
       );
     }
@@ -30,21 +36,29 @@ export class TasksService {
     return tasks;
   }
 
-  async getTaskById(id: string): Promise<Task> {
-    const found = await this.tasksRepository.findOne({ where: { id } });
+  async getTaskById(id: string, user: User): Promise<Task> {
+    try {
+      const found = await this.tasksRepository.findOne({ where: { id, user } });
 
-    if (!found) {
+      if (!found) {
+        throw new NotFoundException(`Tarefa de ID (${id}) não foi encontrada.`);
+      }
+
+      return found;
+    } catch ({ code }) {
       throw new NotFoundException(`Tarefa de ID (${id}) não foi encontrada.`);
     }
-
-    return found;
   }
 
-  async createTask({ title, description }: CreateTaskDto): Promise<Task> {
+  async createTask(
+    { title, description }: CreateTaskDto,
+    user: User,
+  ): Promise<Task> {
     const task = this.tasksRepository.create({
       title,
       description,
       status: TaskStatus.OPEN,
+      user,
     });
 
     await this.tasksRepository.save(task);
@@ -52,18 +66,20 @@ export class TasksService {
     return task;
   }
 
-  async deleteTask(id: string) {
-    const result = await this.tasksRepository.delete(id);
-
-    console.log(result);
+  async deleteTask(id: string, user: User) {
+    const result = await this.tasksRepository.delete({ id, user });
 
     if (result.affected === 0) {
       throw new NotFoundException(`Tarefa de ID (${id} não foi encontrada.`);
     }
   }
 
-  async updateTaskStatus(id: string, status: TaskStatus): Promise<Task> {
-    const task = await this.getTaskById(id);
+  async updateTaskStatus(
+    id: string,
+    status: TaskStatus,
+    user: User,
+  ): Promise<Task> {
+    const task = await this.getTaskById(id, user);
 
     task.status = status;
     await this.tasksRepository.save(task);
